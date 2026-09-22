@@ -1,7 +1,7 @@
 # Publish to Docker Hub
 
 The workflow builds the committed Dockerfile and publishes on every push to
-`master`. It can also be run manually from the Actions tab on `master`.
+`main`. It can also be run manually from the Actions tab on `main`.
 
 In the GitHub repository, open **Settings → Secrets and variables → Actions**:
 
