@@ -1,0 +1,10 @@
+node_modules
+.pnpm-store
+dist
+.git
+.agents
+.codex
+.env*
+*.tsbuildinfo
+docs
+Dockerfile
