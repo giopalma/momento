@@ -1,0 +1,14 @@
+:root {
+  --display: "Cooper Black", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+  font-family: Inter, ui-rounded, "Segoe UI", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  background: #f7eadc;
+}
+
+* { box-sizing: border-box; }
+html { min-width: 320px; background: #f7eadc; }
+body { min-width: 320px; min-height: 100svh; margin: 0; }
+button, input { font: inherit; }
+::selection { background: #f4bfad; color: #4f4354; }
