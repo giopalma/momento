@@ -10,6 +10,7 @@ export interface Preferences {
   autoBreaks: boolean
   autoFocus: boolean
   volume: number
+  maxVolume: number
   muted: boolean
   alertVolume: number
   reducedMotion: boolean
@@ -25,6 +26,7 @@ export const defaultPreferences: Preferences = {
   autoBreaks: false,
   autoFocus: false,
   volume: 0.55,
+  maxVolume: 0.7,
   muted: false,
   alertVolume: 0.7,
   reducedMotion: false,
@@ -108,7 +110,7 @@ export function normalizePreferences(value: unknown): Preferences {
   }
   const boolean = (key: string, fallback: boolean) =>
     typeof input[key] === 'boolean' ? input[key] : fallback
-
+  
   return {
     focusMinutes: number('focusMinutes', 25, 1, 120),
     shortMinutes: number('shortMinutes', 5, 1, 60),
@@ -117,6 +119,7 @@ export function normalizePreferences(value: unknown): Preferences {
     autoBreaks: boolean('autoBreaks', false),
     autoFocus: boolean('autoFocus', false),
     volume: number('volume', 0.55, 0, 1),
+    maxVolume: number('maxVolume', 0.7, 0, 1),
     muted: boolean('muted', false),
     alertVolume: number('alertVolume', 0.7, 0, 1),
     reducedMotion: boolean('reducedMotion', false),

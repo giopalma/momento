@@ -281,7 +281,7 @@ export function App() {
   }
 
   const setMusicVolume = (factor = 1) => {
-    const volume = preferences.muted ? 0 : preferences.volume * factor
+    const volume = preferences.muted ? 0 : preferences.volume * factor * preferences.maxVolume
     if (audioRef.current) audioRef.current.volume = volume
     if (youtubePlayerRef.current) {
       youtubePlayerRef.current.setVolume(volume * 100)
@@ -788,8 +788,15 @@ export function App() {
             <label class="toggle"><span>Riduci i movimenti</span><input type="checkbox" checked={preferences.reducedMotion} onChange={(event) => updatePreferences({ reducedMotion: event.currentTarget.checked })} /></label>
           </fieldset>
           <fieldset>
-            <legend>Avvisi</legend>
+            <legend>Volume</legend>
+            <label class="range-setting"><span>Volume generale</span><input type="range" min="0" max="1" step="0.01" value={preferences.maxVolume} onInput={(event) => {
+              updatePreferences({ maxVolume: Number(event.currentTarget.value) })
+              setMusicVolume()
+              }} /></label>
             <label class="range-setting"><span>Volume campana</span><input type="range" min="0" max="1" step="0.01" value={preferences.alertVolume} onInput={(event) => updatePreferences({ alertVolume: Number(event.currentTarget.value) })} /></label>
+          </fieldset>
+          <fieldset>
+            <legend>Avvisi</legend>
             <p class="permission-status">Notifiche: {'Notification' in window ? ({ granted: 'attive', denied: 'bloccate', default: 'da autorizzare' } as const)[Notification.permission] : 'non supportate'}</p>
           </fieldset>
           <div class="settings-actions"><button class="save-button" value="close">Fatto</button></div>
