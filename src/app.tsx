@@ -230,21 +230,29 @@ function pencilPath(seed: string, from: number, to: number, baseline: number, ti
   }, '') + ` L${points[7][0]} ${points[7][1]}`
 }
 
+const pencilGrain = `<filter id='g' x='-5%' y='-60%' width='110%' height='220%'><feTurbulence type='fractalNoise' baseFrequency='1.1 .9' numOctaves='2' seed='4' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='1.4' xChannelSelector='R' yChannelSelector='G' result='r'/><feColorMatrix in='n' type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.2 0 0 0 -.45' result='a'/><feComposite in='r' in2='a' operator='in'/></filter>`
+
+// Stroke images are used as per-line backgrounds so the mark follows wrapped text.
+function pencilImage(path: string, color: string, width: number, grain: boolean) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12' preserveAspectRatio='none'>${grain ? pencilGrain : ''}<path d='${path}' fill='none' stroke='${color}' stroke-width='${width}' stroke-linecap='round'${grain ? " filter='url(%23g)'" : ''}/></svg>`
+  return `url("data:image/svg+xml,${svg.replace(/#/g, '%23').replace(/"/g, "'")}")`
+}
+
 function TaskItem({ task, completing, onComplete }: { task: Task; completing: boolean; onComplete: () => void }) {
-  const first = pencilPath(task.id, -3, 103, 6.5, -1.2)
+  const first = pencilPath(task.id, 1, 99, 6.5, -1.2)
+  const ink = {
+    '--pencil-preview': pencilImage(first, 'rgba(135,121,133,.6)', 1.4, false),
+    '--pencil-pass': pencilImage(first, '#4a4150', 2.3, true),
+    '--pencil-return': pencilImage(pencilPath(`${task.id}~`, 99, 3, 7.4, .9), 'rgba(74,65,80,.75)', 1.7, true),
+  }
   return (
     <li class={`task-item ${completing ? 'completing' : ''}`}>
-      <button type="button" class="task-strike" onClick={onComplete} disabled={completing} aria-label={`Segna come completata: ${task.text}`} title={task.text}>
-        <i class="task-bullet" aria-hidden="true"></i>
+      <button type="button" class="task-strike" onClick={onComplete} disabled={completing} aria-label={`Segna come completata: ${task.text}`}>
         <span class="task-text">
           {task.text}
-          <svg class="pencil-stroke" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true">
-            <path class="pencil-preview" pathLength="1" d={first} />
-            <g filter="url(#pencil-grain)">
-              <path class="pencil-pass" pathLength="1" d={first} />
-              <path class="pencil-pass pencil-return" pathLength="1" d={pencilPath(`${task.id}~`, 101, 6, 7.4, .9)} />
-            </g>
-          </svg>
+          <span class="task-ink" style={ink} aria-hidden="true">
+            <span class="ink ink-preview"><span class="ink ink-pass"><span class="ink ink-return">{task.text}</span></span></span>
+          </span>
         </span>
       </button>
     </li>
@@ -874,16 +882,6 @@ export function App() {
           </div>
         </section>
       </main>
-
-      <svg class="svg-defs" aria-hidden="true" focusable="false">
-        <filter id="pencil-grain" x="-5%" y="-60%" width="110%" height="220%">
-          <feTurbulence type="fractalNoise" baseFrequency="1.1 .9" numOctaves="2" seed="4" result="noise" />
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.4" xChannelSelector="R" yChannelSelector="G" result="rough" />
-          <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.2 0 0 0 -.45" result="grain" />
-          <feComposite in="rough" in2="grain" operator="in" />
-        </filter>
-      </svg>
-
       <dialog ref={settingsRef} onClose={() => setSettingsOpen(false)} class="settings-dialog">
         <OrganicFrame variant="settings-panel" animate={animateShapes} />
         <form method="dialog" class="settings-content">

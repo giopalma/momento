@@ -191,9 +191,7 @@ main {
   min-height: 0;
   width: 100%;
   padding: 13px 6px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  display: block;
   overflow: hidden;
   border: 0;
   border-bottom: 1.5px dashed #e3d3c6;
@@ -206,63 +204,43 @@ main {
 .task-strike:active { transform: none; }
 .task-strike:focus-visible { outline-offset: -3px; }
 .task-strike:disabled { cursor: default; }
-.task-bullet {
-  flex: 0 0 15px;
-  height: 15px;
-  border: 2px solid var(--accent);
-  border-radius: 46% 54% 48% 52%;
-  transition: background-color .25s ease, transform .25s ease;
-}
-.completing .task-bullet { background: var(--accent); transform: scale(1.1) rotate(12deg); }
 .task-text {
   position: relative;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: block;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
   transition: color .4s ease .3s;
 }
 .completing .task-text { color: var(--muted); }
 
-.pencil-stroke {
+/* A transparent copy of the text laid over it: its per-line backgrounds draw the pencil marks above the letters. */
+.task-ink {
   position: absolute;
-  left: -3px;
-  top: 46%;
-  width: calc(100% + 6px);
-  height: 16px;
-  overflow: visible;
-  transform: translateY(-50%);
+  inset: 0;
+  color: transparent;
   pointer-events: none;
+  user-select: none;
 }
-.pencil-stroke path {
-  fill: none;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
+.ink {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background-repeat: no-repeat;
+  background-position: left 58%;
+  background-size: 0% 16px;
+  transition: background-size .38s cubic-bezier(.55, .1, .35, 1);
 }
-.pencil-preview {
-  stroke: var(--muted);
-  stroke-width: 1.4;
-  opacity: 0;
-  transition: stroke-dashoffset .3s ease-out, opacity .2s ease;
-}
-.pencil-pass {
-  stroke: #4a4150;
-  stroke-width: 2.3;
-  transition: stroke-dashoffset .38s cubic-bezier(.55, .1, .35, 1);
-}
-.pencil-return { stroke-width: 1.7; opacity: .75; transition-delay: .36s; transition-duration: .3s; }
-.completing .pencil-pass { stroke-dashoffset: 0; }
-.completing .pencil-preview { opacity: 0; }
+.ink-preview { background-image: var(--pencil-preview); transition-duration: .3s; }
+.ink-pass { background-image: var(--pencil-pass); }
+.ink-return { background-image: var(--pencil-return); background-position: right 64%; transition-delay: .36s; transition-duration: .3s; }
+.completing .ink-pass,
+.completing .ink-return { background-size: 100% 16px; }
 
 @media (hover: hover) {
-  .task-strike:not(:disabled):hover .pencil-preview,
-  .task-strike:focus-visible .pencil-preview { stroke-dashoffset: 0; opacity: .55; }
+  .task-strike:not(:disabled):hover .ink-preview,
+  .task-strike:focus-visible .ink-preview { background-size: 100% 16px; }
 }
 
 .task-empty { margin: 18px 4px; color: var(--muted); font-size: .95rem; line-height: 1.5; }
-
-.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 .mode-switch {
   position: relative;
