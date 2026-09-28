@@ -15,6 +15,7 @@ import {
 } from './model.ts'
 import { closedSplinePath, createRadialBlobPoints, createRectBlobPoints } from './blob.ts'
 import { accessHistory, type HistoryEntry } from './history.ts'
+import { addTask, normalizeTasks, removeTask, type Task } from './tasks.ts'
 import './app.css'
 
 interface LocalTrack {
@@ -73,6 +74,8 @@ declare global {
 }
 
 const STORAGE_KEY = 'momento-preferences'
+const TASKS_KEY = 'momento-tasks'
+const TASK_EXIT_MS = 1100
 const modeLabels: Record<Mode, string> = {
   focus: 'Focus',
   short: 'Pausa breve',
@@ -115,6 +118,14 @@ function loadPreferences() {
       : preferences
   } catch {
     return defaultPreferences
+  }
+}
+
+function loadTasks() {
+  try {
+    return normalizeTasks(JSON.parse(localStorage.getItem(TASKS_KEY) ?? 'null'))
+  } catch {
+    return []
   }
 }
 
@@ -201,6 +212,53 @@ function TimerGraphic({ progress, animate }: { progress: number; animate: boolea
   )
 }
 
+// A slightly tilted, wobbly line that reads as a hand-drawn pencil mark.
+function pencilPath(seed: string, from: number, to: number, baseline: number, tilt: number) {
+  let state = [...seed].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 7)
+  const random = () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 2 ** 32 - .5
+  }
+  const points = Array.from({ length: 8 }, (_, index) => {
+    const x = from + (to - from) * index / 7
+    return [x, baseline + tilt * (x - 50) / 50 + random() * 1.6]
+  })
+  return points.reduce((path, [x, y], index) => {
+    if (index === 0) return `M${x} ${y}`
+    const [px, py] = points[index - 1]
+    return `${path} Q${px} ${py} ${(px + x) / 2} ${(py + y) / 2}`
+  }, '') + ` L${points[7][0]} ${points[7][1]}`
+}
+
+const pencilGrain = `<filter id='g' x='-5%' y='-60%' width='110%' height='220%'><feTurbulence type='fractalNoise' baseFrequency='1.1 .9' numOctaves='2' seed='4' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='1.4' xChannelSelector='R' yChannelSelector='G' result='r'/><feColorMatrix in='n' type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.2 0 0 0 -.45' result='a'/><feComposite in='r' in2='a' operator='in'/></filter>`
+
+// Stroke images are used as per-line backgrounds so the mark follows wrapped text.
+function pencilImage(path: string, color: string, width: number, grain: boolean) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12' preserveAspectRatio='none'>${grain ? pencilGrain : ''}<path d='${path}' fill='none' stroke='${color}' stroke-width='${width}' stroke-linecap='round'${grain ? " filter='url(%23g)'" : ''}/></svg>`
+  return `url("data:image/svg+xml,${svg.replace(/#/g, '%23').replace(/"/g, "'")}")`
+}
+
+function TaskItem({ task, completing, onComplete }: { task: Task; completing: boolean; onComplete: () => void }) {
+  const first = pencilPath(task.id, 1, 99, 6.5, -1.2)
+  const ink = {
+    '--pencil-preview': pencilImage(first, 'rgba(135,121,133,.6)', 1.4, false),
+    '--pencil-pass': pencilImage(first, '#4a4150', 2.3, true),
+    '--pencil-return': pencilImage(pencilPath(`${task.id}~`, 99, 3, 7.4, .9), 'rgba(74,65,80,.75)', 1.7, true),
+  }
+  return (
+    <li class={`task-item ${completing ? 'completing' : ''}`}>
+      <button type="button" class="task-strike" onClick={onComplete} disabled={completing} aria-label={`Segna come completata: ${task.text}`}>
+        <span class="task-text">
+          {task.text}
+          <span class="task-ink" style={ink} aria-hidden="true">
+            <span class="ink ink-preview"><span class="ink ink-pass"><span class="ink ink-return">{task.text}</span></span></span>
+          </span>
+        </span>
+      </button>
+    </li>
+  )
+}
+
 export function App() {
   const [preferences, setPreferences] = useState(loadPreferences)
   const [mode, setMode] = useState<Mode>('focus')
@@ -223,6 +281,10 @@ export function App() {
   const [youtubeRetry, setYoutubeRetry] = useState(0)
   const [playerError, setPlayerError] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [panelTab, setPanelTab] = useState<'tasks' | 'music'>('tasks')
+  const [tasks, setTasks] = useState(loadTasks)
+  const [taskDraft, setTaskDraft] = useState('')
+  const [completingTasks, setCompletingTasks] = useState<string[]>([])
   const deadlineRef = useRef(0)
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -263,6 +325,28 @@ export function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences))
   }, [preferences])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TASKS_KEY, JSON.stringify(tasks))
+    } catch {
+      // Tasks stay available for this visit even when storage is full or blocked.
+    }
+  }, [tasks])
+
+  const submitTask = () => {
+    setTasks((current) => addTask(current, taskDraft, `${Date.now()}-${Math.random().toString(36).slice(2)}`))
+    setTaskDraft('')
+  }
+
+  const completeTask = (id: string) => {
+    if (completingTasks.includes(id)) return
+    setCompletingTasks((current) => [...current, id])
+    window.setTimeout(() => {
+      setTasks((current) => removeTask(current, id))
+      setCompletingTasks((current) => current.filter((item) => item !== id))
+    }, TASK_EXIT_MS)
+  }
 
   useEffect(() => {
     const dialog = settingsRef.current
@@ -714,62 +798,90 @@ export function App() {
           </div>
         </section>
 
-        <section class="music-panel organic-panel" aria-labelledby="music-title">
+        <section class="side-panel organic-panel" aria-label="Task e musica">
           <OrganicFrame variant="music-panel" animate={animateShapes} />
-          <div class="panel-heading">
-            <div><span class="eyebrow">Sottofondo</span><h2 id="music-title">La tua musica</h2></div>
-            {queue.length > 0 && <button class="text-button" type="button" onClick={clearQueue}>Svuota coda</button>}
+          <div class="mode-switch panel-tabs" role="tablist" aria-label="Contenuto del pannello">
+            <OrganicFrame variant="input" animate={animateShapes} />
+            {([['tasks', 'Task'], ['music', 'Musica']] as const).map(([tab, label]) => (
+              <button key={tab} id={`tab-${tab}`} type="button" role="tab" class={panelTab === tab ? 'active' : ''} aria-selected={panelTab === tab} aria-controls={`panel-${tab}`} onClick={() => setPanelTab(tab)}>
+                {label}{tab === 'tasks' && tasks.length > 0 && <span class="tab-count">{tasks.length}</span>}{tab === 'music' && playing && <span class="tab-live" aria-label="in riproduzione"></span>}
+              </button>
+            ))}
           </div>
 
-          {!source && <div class={`empty-player ${preferences.lastSource === 'youtube' ? 'youtube-first' : ''}`}>
-            {preferences.lastSource === 'youtube' ? <>{youtubeInput}{localInput}</> : <>{localInput}{youtubeInput}</>}
-            {history.length > 0 && <section class="import-history" aria-label="Import recenti">
-              <h3>Import recenti</h3>
-              <div class="queue-list history-list">
-                {history.map((entry) => <button key={entry.key} type="button" class={`history-${entry.kind}`} onClick={() => openHistory(entry)}>
-                  <span>{entry.kind === 'local' ? 'Locale' : 'YouTube'}</span><strong>{entry.title}</strong>
-                </button>)}
-              </div>
-            </section>}
-          </div>}
-
-          {historyError && <p class="error" role="alert">{historyError}</p>}
-
-          {source && currentTrack && (
-            <div class="active-player">
-              {source === 'youtube' && <div class="youtube-stage" ref={youtubeHostRef} aria-label="Player YouTube"></div>}
-              <div class="now-playing">
-                <div class="track-copy"><strong>{currentTrack.title}</strong><span>{currentTrack.kind === 'local' ? 'Dal tuo dispositivo' : currentTrack.playlistId ? 'Playlist YouTube' : 'Video YouTube'} · {currentIndex + 1}/{queue.length}</span></div>
-                {!playerReady && <span class="player-status">Caricamento…</span>}
-              </div>
-
-              <div class="player-controls">
-                <button type="button" onClick={() => advanceTrack(-1)} aria-label="Traccia precedente"><ChevronLeft size={23} strokeWidth={2.5} /></button>
-                <button class="player-play" type="button" onClick={togglePlayback} aria-label={playing ? 'Pausa' : 'Riproduci'}>{playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button>
-                <button type="button" onClick={() => advanceTrack(1)} aria-label="Traccia successiva"><ChevronRight size={23} strokeWidth={2.5} /></button>
-              </div>
-
-              <div class="seek-row"><span>{formatTime(currentTime)}</span><input type="range" min="0" max={Math.max(1, trackDuration)} step="0.1" value={currentTime} onInput={(event) => seekTrack(Number(event.currentTarget.value))} aria-label="Posizione nella traccia" /><span>{formatTime(trackDuration)}</span></div>
-
-              <div class="player-options">
-                <button type="button" class={shuffle ? 'selected' : ''} onClick={() => setShuffle(!shuffle)} aria-pressed={shuffle}>Casuale</button>
-                <button type="button" class={repeat !== 'off' ? 'selected' : ''} onClick={() => setRepeat(cycleRepeat(repeat))} aria-label={repeatLabel}>{repeat === 'track' ? 'Ripeti 1' : repeat === 'queue' ? 'Ripeti ∞' : 'Ripeti'}</button>
-                <button type="button" onClick={() => updatePreferences({ muted: !preferences.muted })}>{preferences.muted ? 'Audio off' : 'Audio on'}</button>
-                <input type="range" min="0" max="1" step="0.01" value={preferences.volume} onInput={(event) => updatePreferences({ volume: Number(event.currentTarget.value) })} aria-label="Volume musica" />
-              </div>
-
-              {source === 'local' ? localInput : youtubeInput}
-              <div class="queue-list" aria-label="Coda di ascolto">
-                {queue.map((track, index) => <button key={track.id} type="button" class={index === currentIndex ? 'current' : ''} onClick={() => { setCurrentIndex(index); setCurrentTime(0) }}><span>{index + 1}</span>{track.title}</button>)}
-              </div>
+          <div id="panel-tasks" class="tab-view task-view" role="tabpanel" aria-labelledby="tab-tasks" hidden={panelTab !== 'tasks'}>
+            <div class="panel-heading">
+              <div><span class="eyebrow">Una cosa alla volta</span><h2 id="tasks-title">Le tue task</h2></div>
             </div>
-          )}
+            <form class="task-form" onSubmit={(event) => { event.preventDefault(); submitTask() }}>
+              <div class="url-field">
+                <OrganicFrame variant="input" animate={animateShapes} />
+                <input type="text" value={taskDraft} maxLength={140} onInput={(event) => setTaskDraft(event.currentTarget.value)} placeholder="Cosa vuoi fare?" aria-label="Nuova task" />
+              </div>
+              <button type="submit" class="mini-button" aria-label="Aggiungi task" disabled={!taskDraft.trim()}><Plus size={18} strokeWidth={2.6} /></button>
+            </form>
+            {tasks.length > 0
+              ? <ul class="task-list" aria-labelledby="tasks-title">
+                {tasks.map((task) => <TaskItem key={task.id} task={task} completing={completingTasks.includes(task.id)} onComplete={() => completeTask(task.id)} />)}
+              </ul>
+              : <p class="task-empty">Nessuna task per ora. Scrivine una e cancellala a matita quando hai finito.</p>}
+          </div>
 
-          {playerError && <p class="error" role="alert">{playerError}{source === 'youtube' && <button type="button" onClick={() => { setPlayerError(''); setYoutubeRetry((value) => value + 1) }}>Riprova</button>}</p>}
-          <audio ref={audioRef} onLoadedMetadata={(event) => { setTrackDuration(event.currentTarget.duration || 0); setPlayerReady(true) }} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => advanceTrack(1, true)} onError={() => setPlayerError('Questo file non può essere riprodotto dal browser.')} />
+          <div id="panel-music" class="tab-view music-view" role="tabpanel" aria-labelledby="tab-music" hidden={panelTab !== 'music'}>
+            <div class="panel-heading">
+              <div><span class="eyebrow">Sottofondo</span><h2 id="music-title">La tua musica</h2></div>
+              {queue.length > 0 && <button class="text-button" type="button" onClick={clearQueue}>Svuota coda</button>}
+            </div>
+
+            {!source && <div class={`empty-player ${preferences.lastSource === 'youtube' ? 'youtube-first' : ''}`}>
+              {preferences.lastSource === 'youtube' ? <>{youtubeInput}{localInput}</> : <>{localInput}{youtubeInput}</>}
+              {history.length > 0 && <section class="import-history" aria-label="Import recenti">
+                <h3>Import recenti</h3>
+                <div class="queue-list history-list">
+                  {history.map((entry) => <button key={entry.key} type="button" class={`history-${entry.kind}`} onClick={() => openHistory(entry)}>
+                    <span>{entry.kind === 'local' ? 'Locale' : 'YouTube'}</span><strong>{entry.title}</strong>
+                  </button>)}
+                </div>
+              </section>}
+            </div>}
+
+            {historyError && <p class="error" role="alert">{historyError}</p>}
+
+            {source && currentTrack && (
+              <div class="active-player">
+                {source === 'youtube' && <div class="youtube-stage" ref={youtubeHostRef} aria-label="Player YouTube"></div>}
+                <div class="now-playing">
+                  <div class="track-copy"><strong>{currentTrack.title}</strong><span>{currentTrack.kind === 'local' ? 'Dal tuo dispositivo' : currentTrack.playlistId ? 'Playlist YouTube' : 'Video YouTube'} · {currentIndex + 1}/{queue.length}</span></div>
+                  {!playerReady && <span class="player-status">Caricamento…</span>}
+                </div>
+
+                <div class="player-controls">
+                  <button type="button" onClick={() => advanceTrack(-1)} aria-label="Traccia precedente"><ChevronLeft size={23} strokeWidth={2.5} /></button>
+                  <button class="player-play" type="button" onClick={togglePlayback} aria-label={playing ? 'Pausa' : 'Riproduci'}>{playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button>
+                  <button type="button" onClick={() => advanceTrack(1)} aria-label="Traccia successiva"><ChevronRight size={23} strokeWidth={2.5} /></button>
+                </div>
+
+                <div class="seek-row"><span>{formatTime(currentTime)}</span><input type="range" min="0" max={Math.max(1, trackDuration)} step="0.1" value={currentTime} onInput={(event) => seekTrack(Number(event.currentTarget.value))} aria-label="Posizione nella traccia" /><span>{formatTime(trackDuration)}</span></div>
+
+                <div class="player-options">
+                  <button type="button" class={shuffle ? 'selected' : ''} onClick={() => setShuffle(!shuffle)} aria-pressed={shuffle}>Casuale</button>
+                  <button type="button" class={repeat !== 'off' ? 'selected' : ''} onClick={() => setRepeat(cycleRepeat(repeat))} aria-label={repeatLabel}>{repeat === 'track' ? 'Ripeti 1' : repeat === 'queue' ? 'Ripeti ∞' : 'Ripeti'}</button>
+                  <button type="button" onClick={() => updatePreferences({ muted: !preferences.muted })}>{preferences.muted ? 'Audio off' : 'Audio on'}</button>
+                  <input type="range" min="0" max="1" step="0.01" value={preferences.volume} onInput={(event) => updatePreferences({ volume: Number(event.currentTarget.value) })} aria-label="Volume musica" />
+                </div>
+
+                {source === 'local' ? localInput : youtubeInput}
+                <div class="queue-list" aria-label="Coda di ascolto">
+                  {queue.map((track, index) => <button key={track.id} type="button" class={index === currentIndex ? 'current' : ''} onClick={() => { setCurrentIndex(index); setCurrentTime(0) }}><span>{index + 1}</span>{track.title}</button>)}
+                </div>
+              </div>
+            )}
+
+            {playerError && <p class="error" role="alert">{playerError}{source === 'youtube' && <button type="button" onClick={() => { setPlayerError(''); setYoutubeRetry((value) => value + 1) }}>Riprova</button>}</p>}
+            <audio ref={audioRef} onLoadedMetadata={(event) => { setTrackDuration(event.currentTarget.duration || 0); setPlayerReady(true) }} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => advanceTrack(1, true)} onError={() => setPlayerError('Questo file non può essere riprodotto dal browser.')} />
+          </div>
         </section>
       </main>
-
       <dialog ref={settingsRef} onClose={() => setSettingsOpen(false)} class="settings-dialog">
         <OrganicFrame variant="settings-panel" animate={animateShapes} />
         <form method="dialog" class="settings-content">
