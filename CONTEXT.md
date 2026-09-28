@@ -27,3 +27,7 @@ _Evita_: Sessione, round
 **Coda di ascolto**:
 L'insieme ordinato dei contenuti musicali locali oppure YouTube disponibili durante la visita corrente. Contiene una sola sorgente per volta e viene azzerato al cambio di sorgente o al ricaricamento dell'app.
 _Evita_: Playlist, libreria
+
+**Task**:
+Un'attività che l'utente vuole portare a termine, annotata accanto al timer. Resta salvata nel browser finché non viene segnata come completata: a quel punto viene cancellata con un segno a matita e rimossa.
+_Evita_: Todo, attività, compito
