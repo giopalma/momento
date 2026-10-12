@@ -19,3 +19,12 @@ export function addTask(tasks: Task[], text: string, id: string): Task[] {
 }
 
 export const removeTask = (tasks: Task[], id: string) => tasks.filter((task) => task.id !== id)
+
+export function moveTask(tasks: Task[], id: string, to: number): Task[] {
+  const from = tasks.findIndex((task) => task.id === id)
+  const target = Math.max(0, Math.min(to, tasks.length - 1))
+  if (from < 0 || from === target) return tasks
+  const next = tasks.filter((task) => task.id !== id)
+  next.splice(target, 0, tasks[from])
+  return next
+}

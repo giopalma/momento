@@ -15,7 +15,7 @@ import {
 } from './model.ts'
 import { closedSplinePath, createRadialBlobPoints, createRectBlobPoints } from './blob.ts'
 import { accessHistory, type HistoryEntry } from './history.ts'
-import { addTask, normalizeTasks, removeTask, type Task } from './tasks.ts'
+import { addTask, moveTask, normalizeTasks, removeTask, type Task } from './tasks.ts'
 import './app.css'
 
 interface LocalTrack {
@@ -238,7 +238,15 @@ function pencilImage(path: string, color: string, width: number, grain: boolean)
   return `url("data:image/svg+xml,${svg.replace(/#/g, '%23').replace(/"/g, "'")}")`
 }
 
-function TaskItem({ task, completing, onComplete }: { task: Task; completing: boolean; onComplete: () => void }) {
+interface TaskItemProps {
+  task: Task
+  completing: boolean
+  onComplete: () => void
+  onPointerDown: (event: PointerEvent) => void
+  onKeyDown: (event: KeyboardEvent) => void
+}
+
+function TaskItem({ task, completing, onComplete, onPointerDown, onKeyDown }: TaskItemProps) {
   const first = pencilPath(task.id, 1, 99, 6.5, -1.2)
   const ink = {
     '--pencil-preview': pencilImage(first, 'rgba(135,121,133,.6)', 1.4, false),
@@ -246,8 +254,8 @@ function TaskItem({ task, completing, onComplete }: { task: Task; completing: bo
     '--pencil-return': pencilImage(pencilPath(`${task.id}~`, 99, 3, 7.4, .9), 'rgba(74,65,80,.75)', 1.7, true),
   }
   return (
-    <li class={`task-item ${completing ? 'completing' : ''}`}>
-      <button type="button" class="task-strike" onClick={onComplete} disabled={completing} aria-label={`Segna come completata: ${task.text}`}>
+    <li class={`task-item ${completing ? 'completing' : ''}`} data-task={task.id}>
+      <button type="button" class="task-strike" onClick={onComplete} onPointerDown={onPointerDown} onKeyDown={onKeyDown} disabled={completing} aria-label={`Segna come completata: ${task.text}`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">
         <span class="task-text">
           {task.text}
           <span class="task-ink" style={ink} aria-hidden="true">
@@ -256,6 +264,229 @@ function TaskItem({ task, completing, onComplete }: { task: Task; completing: bo
         </span>
       </button>
     </li>
+  )
+}
+
+interface TaskDrag {
+  id: string
+  pointerId: number
+  touch: boolean
+  startX: number
+  startY: number
+  pointerY: number
+  active: boolean
+  holdTimer: number
+  scrollFrame: number
+  release: () => void
+  item?: HTMLLIElement
+  items: HTMLLIElement[]
+  index: number
+  target: number
+  // Item tops and heights in list content coordinates, so scrolling while dragging keeps them valid.
+  tops: number[]
+  heights: number[]
+  startScroll: number
+}
+
+const DRAG_THRESHOLD = 5
+const TOUCH_HOLD_MS = 280
+const TASK_DROP_MS = 220
+
+// Tasks are reordered by grabbing their text: the task lifts off the paper and the others slide to make room.
+function TaskList({ tasks, completing, reducedMotion, onComplete, onMove }: {
+  tasks: Task[]
+  completing: string[]
+  reducedMotion: boolean
+  onComplete: (id: string) => void
+  onMove: (id: string, to: number) => void
+}) {
+  const listRef = useRef<HTMLUListElement>(null)
+  const dragRef = useRef<TaskDrag | null>(null)
+  const suppressClickRef = useRef(false)
+  const refocusRef = useRef('')
+
+  const clearStyles = (drag: TaskDrag) => {
+    listRef.current?.classList.remove('sorting')
+    document.body.classList.remove('task-sorting')
+    drag.items.forEach((item) => {
+      item.classList.remove('dragging', 'dropping')
+      item.style.transform = ''
+    })
+  }
+
+  const stop = () => {
+    const drag = dragRef.current
+    if (!drag) return
+    window.clearTimeout(drag.holdTimer)
+    cancelAnimationFrame(drag.scrollFrame)
+    drag.release()
+    dragRef.current = null
+    return drag
+  }
+
+  const layout = (drag: TaskDrag) => {
+    const list = listRef.current
+    if (!list || !drag.item) return
+    const { index, tops, heights } = drag
+    const last = tops.length - 1
+    const offset = drag.pointerY - drag.startY + list.scrollTop - drag.startScroll
+    const shift = Math.max(tops[0] - tops[index], Math.min(tops[last] + heights[last] - tops[index] - heights[index], offset))
+    // A neighbour gives way once the leading edge of the lifted task passes its middle.
+    const top = tops[index] + shift
+    const bottom = top + heights[index]
+    drag.target = tops.reduce((target, itemTop, i) => {
+      const middle = itemTop + heights[i] / 2
+      return (i < index && middle <= top) || (i > index && middle < bottom) ? target + 1 : target
+    }, 0)
+    drag.items.forEach((item, i) => {
+      if (i === index) item.style.transform = `translateY(${shift}px)`
+      else if (i > index && i <= drag.target) item.style.transform = `translateY(${-heights[index]}px)`
+      else if (i < index && i >= drag.target) item.style.transform = `translateY(${heights[index]}px)`
+      else item.style.transform = ''
+    })
+  }
+
+  // Near the edges of a scrolling list, keep scrolling so far tasks can be reached.
+  const autoScroll = () => {
+    const drag = dragRef.current
+    const list = listRef.current
+    if (!drag || !list) return
+    const { top, bottom } = list.getBoundingClientRect()
+    const edge = Math.min(48, (bottom - top) / 4)
+    const speed = drag.pointerY < top + edge ? -(top + edge - drag.pointerY) : drag.pointerY > bottom - edge ? drag.pointerY - bottom + edge : 0
+    if (speed) {
+      const before = list.scrollTop
+      list.scrollTop += Math.max(-1, Math.min(1, speed / edge)) * 10
+      if (list.scrollTop !== before) layout(drag)
+    }
+    drag.scrollFrame = requestAnimationFrame(autoScroll)
+  }
+
+  const activate = (drag: TaskDrag) => {
+    const list = listRef.current
+    const items = list ? [...list.querySelectorAll<HTMLLIElement>(':scope > .task-item')] : []
+    const index = items.findIndex((item) => item.dataset.task === drag.id)
+    if (!list || index < 0) return stop()
+    const listTop = list.getBoundingClientRect().top - list.scrollTop
+    const rects = items.map((item) => item.getBoundingClientRect())
+    Object.assign(drag, {
+      active: true, items, index, target: index, item: items[index], startScroll: list.scrollTop,
+      tops: rects.map((rect) => rect.top - listTop), heights: rects.map((rect) => rect.height),
+    })
+    list.classList.add('sorting')
+    document.body.classList.add('task-sorting')
+    items[index].classList.add('dragging')
+    if (drag.touch) navigator.vibrate?.(8)
+    layout(drag)
+    drag.scrollFrame = requestAnimationFrame(autoScroll)
+  }
+
+  function onPointerMove(event: PointerEvent) {
+    const drag = dragRef.current
+    if (!drag || event.pointerId !== drag.pointerId) return
+    drag.pointerY = event.clientY
+    if (drag.active) return layout(drag)
+    const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY)
+    // On touch a quick swipe scrolls the list; only a short hold picks the task up.
+    if (drag.touch) {
+      if (distance > 8) stop()
+    } else if (distance > DRAG_THRESHOLD) activate(drag)
+  }
+
+  function onPointerUp(event: PointerEvent) {
+    const drag = dragRef.current
+    if (!drag || event.pointerId !== drag.pointerId) return
+    stop()
+    if (!drag.active || !drag.item) return
+    suppressClickRef.current = true
+    window.setTimeout(() => { suppressClickRef.current = false })
+    const { index, target, heights } = drag
+    const landing = target > index
+      ? heights.slice(index + 1, target + 1).reduce((sum, height) => sum + height, 0)
+      : -heights.slice(target, index).reduce((sum, height) => sum + height, 0)
+    drag.item.classList.replace('dragging', 'dropping')
+    drag.item.style.transform = `translateY(${landing}px)`
+    document.body.classList.remove('task-sorting')
+    window.setTimeout(() => {
+      const list = listRef.current
+      list?.classList.add('settling')
+      clearStyles(drag)
+      if (target !== index) onMove(drag.id, target)
+      requestAnimationFrame(() => requestAnimationFrame(() => list?.classList.remove('settling')))
+    }, reducedMotion ? 0 : TASK_DROP_MS)
+  }
+
+  function onPointerCancel(event: PointerEvent) {
+    if (event.pointerId !== dragRef.current?.pointerId) return
+    const drag = stop()
+    if (drag?.active) clearStyles(drag)
+  }
+
+  const startDrag = (id: string, event: PointerEvent) => {
+    if (dragRef.current || event.button !== 0 || !event.isPrimary || completing.includes(id) || tasks.length < 2) return
+    const drag: TaskDrag = {
+      id, pointerId: event.pointerId, touch: event.pointerType === 'touch', startX: event.clientX, startY: event.clientY, pointerY: event.clientY,
+      active: false, holdTimer: 0, scrollFrame: 0, items: [], index: 0, target: 0, tops: [], heights: [], startScroll: 0,
+      // The handlers of this render are kept so the same ones are removed, even if the list re-renders mid-drag.
+      release: () => {
+        window.removeEventListener('pointermove', onPointerMove)
+        window.removeEventListener('pointerup', onPointerUp)
+        window.removeEventListener('pointercancel', onPointerCancel)
+      },
+    }
+    dragRef.current = drag
+    if (drag.touch) drag.holdTimer = window.setTimeout(() => activate(drag), TOUCH_HOLD_MS)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerCancel)
+  }
+
+  const moveWithKeyboard = (id: string, index: number, event: KeyboardEvent) => {
+    if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
+    event.preventDefault()
+    const to = index + (event.key === 'ArrowUp' ? -1 : 1)
+    if (to < 0 || to >= tasks.length) return
+    refocusRef.current = id
+    onMove(id, to)
+  }
+
+  // Once a touch drag has started the page must not scroll under the finger; this needs a non-passive listener.
+  useEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const holdScroll = (event: TouchEvent) => { if (dragRef.current?.active) event.preventDefault() }
+    list.addEventListener('touchmove', holdScroll, { passive: false })
+    return () => list.removeEventListener('touchmove', holdScroll)
+  }, [])
+
+  // A task removed mid-drag would leave the measured positions stale, so the drag is dropped.
+  useEffect(() => {
+    const drag = dragRef.current
+    if (drag && !tasks.some((task) => task.id === drag.id)) {
+      stop()
+      clearStyles(drag)
+    }
+    if (refocusRef.current) {
+      listRef.current?.querySelector<HTMLButtonElement>(`[data-task="${refocusRef.current}"] .task-strike`)?.focus()
+      refocusRef.current = ''
+    }
+  }, [tasks])
+
+  useEffect(() => () => { stop() }, [])
+
+  return (
+    <ul ref={listRef} class="task-list" aria-labelledby="tasks-title" onContextMenu={(event) => { if (dragRef.current) event.preventDefault() }}>
+      {tasks.map((task, index) => (
+        <TaskItem
+          key={task.id}
+          task={task}
+          completing={completing.includes(task.id)}
+          onComplete={() => { if (!suppressClickRef.current) onComplete(task.id) }}
+          onPointerDown={(event) => startDrag(task.id, event)}
+          onKeyDown={(event) => moveWithKeyboard(task.id, index, event)}
+        />
+      ))}
+    </ul>
   )
 }
 
@@ -821,9 +1052,7 @@ export function App() {
               <button type="submit" class="mini-button" aria-label="Aggiungi task" disabled={!taskDraft.trim()}><Plus size={18} strokeWidth={2.6} /></button>
             </form>
             {tasks.length > 0
-              ? <ul class="task-list" aria-labelledby="tasks-title">
-                {tasks.map((task) => <TaskItem key={task.id} task={task} completing={completingTasks.includes(task.id)} onComplete={() => completeTask(task.id)} />)}
-              </ul>
+              ? <TaskList tasks={tasks} completing={completingTasks} reducedMotion={preferences.reducedMotion} onComplete={completeTask} onMove={(id, to) => setTasks((current) => moveTask(current, id, to))} />
               : <p class="task-empty">Nessuna task per ora. Scrivine una e cancellala a matita quando hai finito.</p>}
           </div>
 

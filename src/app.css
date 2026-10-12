@@ -177,8 +177,9 @@ main {
 
 .task-list {
   min-height: 0;
-  margin: 0;
-  padding: 6px 4px 12px 0;
+  /* Side room, cancelled by the margins, so a lifted task is not clipped by the scrolling list. */
+  margin: 0 -14px 0 -12px;
+  padding: 6px 18px 12px 12px;
   list-style: none;
   overflow-y: auto;
 }
@@ -236,9 +237,29 @@ main {
 .completing .ink-return { background-size: 100% 16px; }
 
 @media (hover: hover) {
-  .task-strike:not(:disabled):hover .ink-preview,
+  .task-list:not(.sorting) .task-strike:not(:disabled):hover .ink-preview,
   .task-strike:focus-visible .ink-preview { background-size: 100% 16px; }
 }
+
+/* Reordering: the grabbed task lifts off the paper like a slip of card and the others slide to make room. */
+.task-strike { -webkit-touch-callout: none; user-select: none; transition: transform .2s cubic-bezier(.3, .7, .4, 1), box-shadow .2s ease, background-color .2s ease, border-radius .2s ease; }
+.task-item { position: relative; }
+.sorting .task-item { transition: transform .22s cubic-bezier(.25, .8, .35, 1); }
+.sorting .task-item.dragging { z-index: 2; overflow: visible; transition: none; }
+.sorting .task-item.dropping,
+.task-item.dropping { z-index: 2; overflow: visible; transition: transform .22s cubic-bezier(.3, .7, .4, 1); }
+.settling .task-item,
+.settling .task-strike { transition: none; }
+.task-item.dragging .task-strike {
+  border-bottom-color: transparent;
+  border-radius: 14px 16px 12px 15px;
+  background-color: var(--paper);
+  box-shadow: 0 14px 26px -10px rgba(79, 67, 84, .38), 0 3px 8px rgba(79, 67, 84, .12);
+  transform: scale(1.035) rotate(-1.2deg);
+}
+.task-item.dropping .task-strike { border-bottom-color: transparent; }
+body.task-sorting,
+body.task-sorting * { cursor: grabbing !important; }
 
 .task-empty { margin: 18px 4px; color: var(--muted); font-size: .95rem; line-height: 1.5; }
 
