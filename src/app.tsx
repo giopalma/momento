@@ -5,6 +5,7 @@ import {
   bellGain,
   cycleRepeat,
   defaultPreferences,
+  musicSilenced,
   musicVolume,
   normalizePreferences,
   parseYouTubeUrl,
@@ -603,10 +604,15 @@ export function App() {
   const setMusicVolume = (factor = 1) => {
     const current = preferencesRef.current
     const volume = musicVolume(current, factor)
-    if (audioRef.current) audioRef.current.volume = volume
+    // Volume 0 alone is not enough: iOS ignores media volume and YouTube needs an explicit mute.
+    const silenced = musicSilenced(current)
+    if (audioRef.current) {
+      audioRef.current.volume = volume
+      audioRef.current.muted = silenced
+    }
     if (youtubePlayerRef.current) {
-      youtubePlayerRef.current.setVolume(volume * 100)
-      if (current.muted) youtubePlayerRef.current.mute()
+      youtubePlayerRef.current.setVolume(Math.round(volume * 100))
+      if (silenced) youtubePlayerRef.current.mute()
       else youtubePlayerRef.current.unMute()
     }
   }
@@ -614,6 +620,7 @@ export function App() {
   useEffect(() => setMusicVolume(), [preferences.volume, preferences.maxVolume, preferences.muted])
 
   const ringBell = () => {
+    if (bellGain(preferences) === 0) return
     const context = getAudioContext()
     if (context.state === 'suspended') void context.resume()
     const now = context.currentTime

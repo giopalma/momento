@@ -5,6 +5,7 @@ import {
   bellGain,
   cycleRepeat,
   defaultPreferences,
+  musicSilenced,
   musicVolume,
   normalizePreferences,
   parseYouTubeUrl,
@@ -114,4 +115,13 @@ test('volume preferences survive a reload through storage', () => {
     assert.deepEqual(reloaded, saved)
     assert.equal(musicVolume(reloaded), musicVolume(saved))
   }
+})
+
+test('the music is silenced when the music or general slider is all the way left', () => {
+  const preferences = { ...defaultPreferences, volume: 0.5, maxVolume: 0.5 }
+  assert.equal(musicSilenced(preferences), false)
+  assert.equal(musicSilenced({ ...preferences, volume: 0 }), true)
+  assert.equal(musicSilenced({ ...preferences, maxVolume: 0 }), true)
+  assert.equal(musicSilenced({ ...preferences, muted: true }), true)
+  assert.equal(musicSilenced({ ...preferences, volume: 0.01, maxVolume: 0.01 }), false)
 })

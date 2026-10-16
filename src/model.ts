@@ -38,6 +38,9 @@ export const defaultPreferences: Preferences = {
 export const musicVolume = (preferences: Preferences, factor = 1) =>
   preferences.muted ? 0 : preferences.volume * preferences.maxVolume * factor
 
+/** True when the music must be hard-muted: mute is on, or the music or general slider is all the way left. */
+export const musicSilenced = (preferences: Preferences) => musicVolume(preferences) === 0
+
 /** Peak bell gain: the general volume scales the bell too, like a master control. */
 export const bellGain = (preferences: Preferences) =>
   preferences.alertVolume * preferences.maxVolume * 0.22
