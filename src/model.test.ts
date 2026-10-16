@@ -86,10 +86,14 @@ test('stored preferences are validated field by field', () => {
   )
 })
 
+test('both sliders all the way right give a quarter of full media volume', () => {
+  assert.equal(musicVolume({ ...defaultPreferences, volume: 1, maxVolume: 1 }), 0.25)
+})
+
 test('the general volume scales the music volume', () => {
   const preferences = { ...defaultPreferences, volume: 0.5, maxVolume: 0.4 }
-  assert.equal(musicVolume(preferences), 0.2)
-  assert.equal(musicVolume({ ...preferences, maxVolume: 1 }), 0.5)
+  assert.equal(musicVolume(preferences), 0.05)
+  assert.equal(musicVolume({ ...preferences, maxVolume: 1 }), 0.125)
   assert.equal(musicVolume({ ...preferences, maxVolume: 0 }), 0)
 })
 
@@ -99,12 +103,12 @@ test('mute silences the music whatever the general volume', () => {
 
 test('the bell ducks the music relative to the general volume', () => {
   const preferences = { ...defaultPreferences, volume: 1, maxVolume: 0.5 }
-  assert.equal(musicVolume(preferences, 0.24), 0.12)
+  assert.equal(musicVolume(preferences, 0.24), 0.03)
 })
 
 test('the general volume scales the bell too', () => {
   const preferences = { ...defaultPreferences, alertVolume: 1, maxVolume: 0.5 }
-  assert.equal(bellGain(preferences), 0.11)
+  assert.equal(bellGain(preferences), 0.055)
   assert.equal(bellGain({ ...preferences, maxVolume: 0 }), 0)
 })
 
