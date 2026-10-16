@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   advanceSession,
+  bellGain,
   cycleRepeat,
+  defaultPreferences,
+  musicVolume,
   normalizePreferences,
   parseYouTubeUrl,
   remainingMs,
@@ -80,4 +83,35 @@ test('stored preferences are validated field by field', () => {
       lastSource: 'local',
     },
   )
+})
+
+test('the general volume scales the music volume', () => {
+  const preferences = { ...defaultPreferences, volume: 0.5, maxVolume: 0.4 }
+  assert.equal(musicVolume(preferences), 0.2)
+  assert.equal(musicVolume({ ...preferences, maxVolume: 1 }), 0.5)
+  assert.equal(musicVolume({ ...preferences, maxVolume: 0 }), 0)
+})
+
+test('mute silences the music whatever the general volume', () => {
+  assert.equal(musicVolume({ ...defaultPreferences, muted: true, maxVolume: 1, volume: 1 }), 0)
+})
+
+test('the bell ducks the music relative to the general volume', () => {
+  const preferences = { ...defaultPreferences, volume: 1, maxVolume: 0.5 }
+  assert.equal(musicVolume(preferences, 0.24), 0.12)
+})
+
+test('the general volume scales the bell too', () => {
+  const preferences = { ...defaultPreferences, alertVolume: 1, maxVolume: 0.5 }
+  assert.equal(bellGain(preferences), 0.11)
+  assert.equal(bellGain({ ...preferences, maxVolume: 0 }), 0)
+})
+
+test('volume preferences survive a reload through storage', () => {
+  for (const maxVolume of [0, 0.01, 0.33, 1]) {
+    const saved = { ...defaultPreferences, maxVolume, volume: 0.8, alertVolume: 0.2, muted: true }
+    const reloaded = normalizePreferences(JSON.parse(JSON.stringify(saved)))
+    assert.deepEqual(reloaded, saved)
+    assert.equal(musicVolume(reloaded), musicVolume(saved))
+  }
 })

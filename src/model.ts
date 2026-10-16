@@ -34,6 +34,14 @@ export const defaultPreferences: Preferences = {
   lastSource: 'local',
 }
 
+/** Music volume (0–1) after the general volume and mute are applied. */
+export const musicVolume = (preferences: Preferences, factor = 1) =>
+  preferences.muted ? 0 : preferences.volume * preferences.maxVolume * factor
+
+/** Peak bell gain: the general volume scales the bell too, like a master control. */
+export const bellGain = (preferences: Preferences) =>
+  preferences.alertVolume * preferences.maxVolume * 0.22
+
 export interface SessionChange {
   mode: Mode
   completedFocuses: number

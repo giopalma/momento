@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { ChevronLeft, ChevronRight, Pause, Play, Plus, RotateCcw, Settings, X } from 'lucide-preact'
 import {
   advanceSession,
+  bellGain,
   cycleRepeat,
   defaultPreferences,
+  musicVolume,
   normalizePreferences,
   parseYouTubeUrl,
   remainingMs,
@@ -523,6 +525,7 @@ export function App() {
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null)
   const settingsRef = useRef<HTMLDialogElement>(null)
   const playingRef = useRef(playing)
+  const preferencesRef = useRef(preferences)
   const queueRef = useRef(queue)
   const timerCompletingRef = useRef(false)
   const advanceRef = useRef<(direction: 1 | -1, ended?: boolean) => void>(() => undefined)
@@ -547,6 +550,7 @@ export function App() {
   })
 
   playingRef.current = playing
+  preferencesRef.current = preferences
   queueRef.current = queue
 
   const updatePreferences = (patch: Partial<Preferences>) => {
@@ -595,17 +599,19 @@ export function App() {
     return audioContextRef.current
   }
 
+  // Read through a ref so delayed callbacks (YouTube onReady, the bell's duck timeout) use current preferences.
   const setMusicVolume = (factor = 1) => {
-    const volume = preferences.muted ? 0 : preferences.volume * factor * preferences.maxVolume
+    const current = preferencesRef.current
+    const volume = musicVolume(current, factor)
     if (audioRef.current) audioRef.current.volume = volume
     if (youtubePlayerRef.current) {
       youtubePlayerRef.current.setVolume(volume * 100)
-      if (preferences.muted) youtubePlayerRef.current.mute()
+      if (current.muted) youtubePlayerRef.current.mute()
       else youtubePlayerRef.current.unMute()
     }
   }
 
-  useEffect(() => setMusicVolume(), [preferences.volume, preferences.muted])
+  useEffect(() => setMusicVolume(), [preferences.volume, preferences.maxVolume, preferences.muted])
 
   const ringBell = () => {
     const context = getAudioContext()
@@ -613,7 +619,7 @@ export function App() {
     const now = context.currentTime
     const gain = context.createGain()
     gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.001, preferences.alertVolume * 0.22), now + 0.015)
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.001, bellGain(preferences)), now + 0.015)
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.35)
     gain.connect(context.destination)
     ;[660, 990].forEach((frequency, index) => {
@@ -1132,8 +1138,7 @@ export function App() {
             <legend>Volume</legend>
             <label class="range-setting"><span>Volume generale</span><input type="range" min="0" max="1" step="0.01" value={preferences.maxVolume} onInput={(event) => {
               updatePreferences({ maxVolume: Number(event.currentTarget.value) })
-              setMusicVolume()
-              }} /></label>
+            }} /></label>
             <label class="range-setting"><span>Volume campana</span><input type="range" min="0" max="1" step="0.01" value={preferences.alertVolume} onInput={(event) => updatePreferences({ alertVolume: Number(event.currentTarget.value) })} /></label>
           </fieldset>
           <fieldset>
