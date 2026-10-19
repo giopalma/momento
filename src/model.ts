@@ -34,21 +34,22 @@ export const defaultPreferences: Preferences = {
   lastSource: 'local',
 }
 
-/** Music volume (0–1) after the general volume and mute are applied. */
-/** Loudness of a slider pushed all the way right: half of the full media volume, which was too loud. */
-export const SLIDER_CEILING = 0.5
+/** Music volume with both sliders all the way right: a third of full media volume, which was too loud. */
+export const MUSIC_CEILING = 0.33
 
+/** General volume ceiling for the bell: half of the full level. */
+export const BELL_GENERAL_CEILING = 0.5
+
+/** Music volume (0–1) after the general volume and mute are applied. */
 export const musicVolume = (preferences: Preferences, factor = 1) =>
-  preferences.muted
-    ? 0
-    : preferences.volume * SLIDER_CEILING * preferences.maxVolume * SLIDER_CEILING * factor
+  preferences.muted ? 0 : preferences.volume * preferences.maxVolume * MUSIC_CEILING * factor
 
 /** True when the music must be hard-muted: mute is on, or the music or general slider is all the way left. */
 export const musicSilenced = (preferences: Preferences) => musicVolume(preferences) === 0
 
 /** Peak bell gain: the general volume scales the bell too, like a master control. */
 export const bellGain = (preferences: Preferences) =>
-  preferences.alertVolume * preferences.maxVolume * SLIDER_CEILING * 0.22
+  preferences.alertVolume * preferences.maxVolume * BELL_GENERAL_CEILING * 0.22
 
 export interface SessionChange {
   mode: Mode
