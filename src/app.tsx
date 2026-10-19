@@ -11,6 +11,7 @@ import {
   parseYouTubeUrl,
   remainingMs,
   switchMode,
+  youtubeVolume,
   type Mode,
   type MusicSource,
   type Preferences,
@@ -610,10 +611,14 @@ export function App() {
       audioRef.current.volume = volume
       audioRef.current.muted = silenced
     }
-    if (youtubePlayerRef.current) {
-      youtubePlayerRef.current.setVolume(Math.round(volume * 100))
-      if (silenced) youtubePlayerRef.current.mute()
-      else youtubePlayerRef.current.unMute()
+    const player = youtubePlayerRef.current
+    if (player) {
+      // Unmute before setting the volume: YouTube's unMute() raises any volume below 5 back up to 5.
+      if (silenced) player.mute()
+      else {
+        player.unMute()
+        player.setVolume(youtubeVolume(volume))
+      }
     }
   }
 
@@ -816,6 +821,7 @@ export function App() {
     }
     let cancelled = false
     let readyTimeout = 0
+    let player: YouTubePlayer | null = null
     setPlayerReady(false)
     setPlayerError('')
     void loadYouTubeApi().then((api) => {
@@ -829,7 +835,8 @@ export function App() {
       }
       const mount = document.createElement('div')
       youtubeHostRef.current.append(mount)
-      youtubePlayerRef.current = new api.Player(mount, {
+      // The player's methods only exist once it is ready, so it is shared through the ref from onReady on.
+      player = new api.Player(mount, {
         height: '200',
         width: '100%',
         videoId: currentTrack.videoId,
@@ -837,6 +844,7 @@ export function App() {
         events: {
           onReady: ({ target }) => {
             window.clearTimeout(readyTimeout)
+            youtubePlayerRef.current = target
             setPlayerReady(true)
             setTrackDuration(target.getDuration())
             setMusicVolume()
@@ -865,7 +873,7 @@ export function App() {
     return () => {
       cancelled = true
       window.clearTimeout(readyTimeout)
-      youtubePlayerRef.current?.destroy()
+      player?.destroy()
       youtubePlayerRef.current = null
     }
   }, [currentTrack?.id, youtubeRetry])

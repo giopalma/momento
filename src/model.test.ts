@@ -11,6 +11,7 @@ import {
   parseYouTubeUrl,
   remainingMs,
   switchMode,
+  youtubeVolume,
 } from './model.ts'
 
 test('a completed fourth focus starts a long break and resets the cycle count', () => {
@@ -104,6 +105,14 @@ test('mute silences the music whatever the general volume', () => {
 test('the bell ducks the music relative to the general volume', () => {
   const preferences = { ...defaultPreferences, volume: 1, maxVolume: 0.5 }
   assert.ok(Math.abs(musicVolume(preferences, 0.24) - 0.0396) < 1e-12)
+})
+
+test('the YouTube volume is a 0–100 integer that never rounds audible music to 0', () => {
+  assert.equal(youtubeVolume(0), 0)
+  assert.equal(youtubeVolume(0.001), 1)
+  assert.equal(youtubeVolume(0.004), 1)
+  assert.equal(youtubeVolume(0.126), 13)
+  assert.equal(youtubeVolume(0.33), 33)
 })
 
 test('the general volume scales the bell too', () => {
