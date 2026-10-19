@@ -34,18 +34,16 @@ export const defaultPreferences: Preferences = {
   lastSource: 'local',
 }
 
-/** Music volume with both sliders all the way right: a third of full media volume, which was too loud. */
-export const MUSIC_CEILING = 0.33
-
 /** General volume ceiling for the bell: half of the full level. */
 export const BELL_GENERAL_CEILING = 0.5
 
 /**
- * Music volume (0–1) after the general volume and mute are applied. It stays linear: YouTube only takes whole
- * levels up to 33 here, and a loudness curve squeezed the bottom third of a slider onto level 1.
+ * Music volume (0–1) after the general volume and mute are applied. It stays linear and uncapped: YouTube only
+ * takes whole levels, so a loudness curve or a ceiling left whole stretches of a slider on the same level.
+ * Lower the system or browser volume instead when full volume is too loud.
  */
 export const musicVolume = (preferences: Preferences, factor = 1) =>
-  preferences.muted ? 0 : preferences.volume * preferences.maxVolume * MUSIC_CEILING * factor
+  preferences.muted ? 0 : preferences.volume * preferences.maxVolume * factor
 
 /** YouTube's integer 0–100 volume; an audible volume never rounds down to 0. */
 export const youtubeVolume = (volume: number) =>

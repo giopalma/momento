@@ -87,14 +87,14 @@ test('stored preferences are validated field by field', () => {
   )
 })
 
-test('both sliders all the way right give a third of full media volume', () => {
-  assert.equal(musicVolume({ ...defaultPreferences, volume: 1, maxVolume: 1 }), 0.33)
+test('both sliders all the way right give full media volume', () => {
+  assert.equal(musicVolume({ ...defaultPreferences, volume: 1, maxVolume: 1 }), 1)
 })
 
 test('the general volume scales the music volume', () => {
   const preferences = { ...defaultPreferences, volume: 0.5, maxVolume: 0.4 }
-  assert.ok(Math.abs(musicVolume(preferences) - 0.066) < 1e-12)
-  assert.equal(musicVolume({ ...preferences, maxVolume: 1 }), 0.165)
+  assert.ok(Math.abs(musicVolume(preferences) - 0.2) < 1e-12)
+  assert.equal(musicVolume({ ...preferences, maxVolume: 1 }), 0.5)
   assert.equal(musicVolume({ ...preferences, maxVolume: 0 }), 0)
 })
 
@@ -104,7 +104,7 @@ test('mute silences the music whatever the general volume', () => {
 
 test('the bell ducks the music relative to the general volume', () => {
   const preferences = { ...defaultPreferences, volume: 1, maxVolume: 0.5 }
-  assert.ok(Math.abs(musicVolume(preferences, 0.24) - 0.0396) < 1e-12)
+  assert.ok(Math.abs(musicVolume(preferences, 0.24) - 0.12) < 1e-12)
 })
 
 test('the YouTube volume is a 0–100 integer that never rounds audible music to 0', () => {
