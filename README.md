@@ -96,4 +96,4 @@ I test si lanciano con `pnpm test`.
 
 ## License / Licenza
 
-[PolyForm Strict 1.0.0](LICENSE.md)
+[PolyForm Noncommercial License 1.0.0](LICENSE.md)
