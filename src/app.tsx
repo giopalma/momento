@@ -650,7 +650,7 @@ export function App() {
   const showCompletionNotification = (finishedMode: Mode) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return
     const body = finishedMode === 'focus'
-      ? 'Hai concluso il Focus. È il momento di respirare.'
+      ? 'Hai completato un Focus. È il momento di fare una pausa.'
       : 'La pausa è finita. Torna al tuo ritmo.'
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker.ready.then((registration) =>
