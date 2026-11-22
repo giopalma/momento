@@ -2,11 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { addTask, moveTask, normalizeTasks, removeTask } from './tasks.ts'
 
-test('tasks are trimmed, empty ones ignored and completed ones removed', () => {
+test('tasks are trimmed, added on top, empty ones ignored and completed ones removed', () => {
   const one = addTask([], '  Scrivere la relazione  ', 'a')
   assert.deepEqual(one, [{ id: 'a', text: 'Scrivere la relazione' }])
   assert.equal(addTask(one, '   ', 'b'), one)
   const two = addTask(one, 'Rispondere alle mail', 'b')
+  assert.deepEqual(two.map((task) => task.id), ['b', 'a'])
   assert.deepEqual(removeTask(two, 'a'), [{ id: 'b', text: 'Rispondere alle mail' }])
 })
 

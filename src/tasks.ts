@@ -15,7 +15,7 @@ export function normalizeTasks(stored: unknown): Task[] {
 
 export function addTask(tasks: Task[], text: string, id: string): Task[] {
   const clean = text.trim().slice(0, MAX_LENGTH)
-  return clean ? [...tasks, { id, text: clean }] : tasks
+  return clean ? [{ id, text: clean }, ...tasks] : tasks
 }
 
 export const removeTask = (tasks: Task[], id: string) => tasks.filter((task) => task.id !== id)
