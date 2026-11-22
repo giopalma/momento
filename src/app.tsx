@@ -650,8 +650,8 @@ export function App() {
   const showCompletionNotification = (finishedMode: Mode) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return
     const body = finishedMode === 'focus'
-      ? 'Hai concluso il Focus. È il momento di respirare.'
-      : 'La pausa è finita. Torna al tuo ritmo.'
+      ? 'Hai completato un Focus. È il momento di fare una pausa.'
+      : 'La pausa è finita. Torniamo a concentrarci.'
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker.ready.then((registration) =>
         registration.showNotification('Momento', { body, icon: '/app-icon.svg', tag: 'momento-session' }),
@@ -1135,7 +1135,7 @@ export function App() {
       <dialog ref={settingsRef} onClose={() => setSettingsOpen(false)} class="settings-dialog">
         <OrganicFrame variant="settings-panel" animate={animateShapes} />
         <form method="dialog" class="settings-content">
-          <div class="panel-heading"><div><span class="eyebrow">Il tuo ritmo</span><h2>Impostazioni</h2></div><button class="icon-button" value="close" aria-label="Chiudi impostazioni"><X size={19} strokeWidth={2.5} /></button></div>
+          <div class="panel-heading"><div><h2>Impostazioni</h2></div><button class="icon-button" value="close" aria-label="Chiudi impostazioni"><X size={19} strokeWidth={2.5} /></button></div>
           <fieldset>
             <legend>Durate</legend>
             <div class="duration-grid">
@@ -1144,7 +1144,7 @@ export function App() {
             </div>
           </fieldset>
           <fieldset>
-            <legend>Flusso</legend>
+            <legend>Comportamento</legend>
             <label class="toggle"><span>Avvia automaticamente le pause</span><input type="checkbox" checked={preferences.autoBreaks} onChange={(event) => updatePreferences({ autoBreaks: event.currentTarget.checked })} /></label>
             <label class="toggle"><span>Avvia automaticamente i Focus</span><input type="checkbox" checked={preferences.autoFocus} onChange={(event) => updatePreferences({ autoFocus: event.currentTarget.checked })} /></label>
             <label class="toggle"><span>Riduci i movimenti</span><input type="checkbox" checked={preferences.reducedMotion} onChange={(event) => updatePreferences({ reducedMotion: event.currentTarget.checked })} /></label>
