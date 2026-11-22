@@ -3,6 +3,18 @@ name: Publish Docker image
 on:
   push:
     branches: [main]
+    # Only rebuild when something that goes into the image changes.
+    paths:
+      - src/**
+      - public/**
+      - index.html
+      - package.json
+      - pnpm-lock.yaml
+      - tsconfig*.json
+      - vite.config.ts
+      - Dockerfile
+      - .dockerignore
+      - .github/workflows/docker-publish.yml
   workflow_dispatch:
 
 permissions:

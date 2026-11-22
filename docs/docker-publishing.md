@@ -1,7 +1,9 @@
 # Publish to Docker Hub
 
 The workflow builds the committed Dockerfile and publishes on every push to
-`main`. It can also be run manually from the Actions tab on `main`.
+`main` that changes the app (source, assets, dependencies, build config or the
+Dockerfile). Changes to docs or the license alone do not trigger it. It can
+also be run manually from the Actions tab on `main`.
 
 In the GitHub repository, open **Settings → Secrets and variables → Actions**:
 
