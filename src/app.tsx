@@ -651,7 +651,7 @@ export function App() {
     if (!('Notification' in window) || Notification.permission !== 'granted') return
     const body = finishedMode === 'focus'
       ? 'Hai completato un Focus. È il momento di fare una pausa.'
-      : 'La pausa è finita. È il momento di tornare al Focus.'
+      : 'La pausa è finita. Si riparte.'
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker.ready.then((registration) =>
         registration.showNotification('Momento', { body, icon: '/app-icon.svg', tag: 'momento-session' }),
